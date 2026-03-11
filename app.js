@@ -1,71 +1,264 @@
 /* ============================================
-   LOFI POMODORO — INTERACTIVE ENGINE
+   LOFI POMODORO — INTERACTIVE ENGINE V2
    ============================================ */
 
 (() => {
     'use strict';
 
     // ==========================================
-    // CONFIGURATION
+    // DEFAULT SETTINGS
     // ==========================================
-    const CONFIG = {
-        WORK_MINUTES: 25,
-        SHORT_BREAK_MINUTES: 5,
-        LONG_BREAK_MINUTES: 15,
-        SESSIONS_BEFORE_LONG_BREAK: 4,
-        PARTICLES: {
-            STARS: 60,
-            DUST: 35,
-            CITY_LIGHTS: 25
+    const DEFAULTS = {
+        workMinutes: 25,
+        shortBreakMinutes: 5,
+        longBreakMinutes: 15,
+        sessionsBeforeLong: 4,
+        autoSequence: true,
+        autoStart: true,
+        notifSound: true,
+        browserNotif: true,
+        particles: true,
+        timerPosition: 'center-center',
+        timerSize: 'medium', // small, medium, large
+        workBg: { type: 'image', source: 'assets/lofi-bg.jpg' },
+        breakBg: { type: 'default', source: 'assets/lofi-bg.jpg' }
+    };
+
+    // ==========================================
+    // SETTINGS MANAGER
+    // ==========================================
+    const Settings = {
+        _data: null,
+
+        load() {
+            try {
+                const saved = localStorage.getItem('lofi-pomodoro-settings');
+                this._data = saved ? { ...DEFAULTS, ...JSON.parse(saved) } : { ...DEFAULTS };
+            } catch {
+                this._data = { ...DEFAULTS };
+            }
+            return this._data;
+        },
+
+        save() {
+            try {
+                localStorage.setItem('lofi-pomodoro-settings', JSON.stringify(this._data));
+            } catch (e) {
+                console.warn('Could not save settings:', e);
+            }
+        },
+
+        get(key) {
+            if (!this._data) this.load();
+            return this._data[key] ?? DEFAULTS[key];
+        },
+
+        set(key, value) {
+            if (!this._data) this.load();
+            this._data[key] = value;
+        },
+
+        resetAll() {
+            this._data = { ...DEFAULTS };
+            this.save();
         }
     };
 
     // ==========================================
-    // STATE
+    // TIMER STATE
     // ==========================================
     const state = {
-        timeRemaining: CONFIG.WORK_MINUTES * 60,
-        totalTime: CONFIG.WORK_MINUTES * 60,
+        timeRemaining: 0,
+        totalTime: 0,
         isRunning: false,
         isPaused: false,
-        currentMode: 'work', // work, short, long
+        currentMode: 'work',
         currentSession: 1,
         completedSessions: 0,
         intervalId: null
     };
 
     // ==========================================
-    // DOM ELEMENTS
+    // DOM REFERENCES
     // ==========================================
-    const dom = {
-        canvas: document.getElementById('particle-canvas'),
-        timerPanel: document.getElementById('timer-panel'),
-        hourglass: document.getElementById('hourglass-hotspot'),
-        minutes: document.getElementById('minutes'),
-        seconds: document.getElementById('seconds'),
-        modeLabel: document.getElementById('timer-mode-label'),
-        btnStart: document.getElementById('btn-start'),
-        btnReset: document.getElementById('btn-reset'),
-        btnSkip: document.getElementById('btn-skip'),
-        closePanel: document.getElementById('close-panel'),
-        progressCircle: document.getElementById('progress-circle'),
-        sessionDots: document.getElementById('session-dots'),
-        sessionCount: document.getElementById('session-count'),
-        modeBtns: document.querySelectorAll('.mode-btn'),
-        iconPlay: document.getElementById('icon-play'),
-        iconPause: document.getElementById('icon-pause'),
-        notifFlash: document.getElementById('notification-flash'),
-        hourglassGlow: document.getElementById('hourglass-ambient-glow')
+    let dom = {};
+
+    function cacheDom() {
+        dom = {
+            // Intro
+            introScreen: document.getElementById('intro-screen'),
+            hourglassWrapper: document.getElementById('hourglass-wrapper'),
+            // Background
+            bgImageLayer: document.getElementById('bg-image-layer'),
+            bgVideoLayer: document.getElementById('bg-video-layer'),
+            bgYoutubeLayer: document.getElementById('bg-youtube-layer'),
+            // Canvas
+            canvas: document.getElementById('particle-canvas'),
+            // Timer Widget
+            timerWidget: document.getElementById('timer-widget'),
+            minutes: document.getElementById('minutes'),
+            seconds: document.getElementById('seconds'),
+            modeLabel: document.getElementById('timer-mode-label'),
+            btnStart: document.getElementById('btn-start'),
+            btnReset: document.getElementById('btn-reset'),
+            btnSkip: document.getElementById('btn-skip'),
+            progressCircle: document.getElementById('progress-circle'),
+            sessionDots: document.getElementById('session-dots'),
+            sessionCount: document.getElementById('session-count'),
+            modeBtns: document.querySelectorAll('.mode-btn'),
+            iconPlay: document.getElementById('icon-play'),
+            iconPause: document.getElementById('icon-pause'),
+            notifFlash: document.getElementById('notification-flash'),
+            // Settings
+            settingsBtn: document.getElementById('settings-btn'),
+            settingsModal: document.getElementById('settings-modal'),
+            settingsClose: document.getElementById('settings-close'),
+            settingsCancel: document.getElementById('settings-cancel'),
+            settingsSave: document.getElementById('settings-save'),
+            settingsBackdrop: document.querySelector('.settings-backdrop'),
+            navBtns: document.querySelectorAll('.nav-btn'),
+            tabPanels: document.querySelectorAll('.tab-panel'),
+            // Settings inputs
+            setWork: document.getElementById('set-work'),
+            setShort: document.getElementById('set-short'),
+            setLong: document.getElementById('set-long'),
+            setAutoSequence: document.getElementById('set-auto-sequence'),
+            setNotifSound: document.getElementById('set-notif-sound'),
+            setBrowserNotif: document.getElementById('set-browser-notif'),
+            setAutoStart: document.getElementById('set-auto-start'),
+            setParticles: document.getElementById('set-particles'),
+            // Background inputs
+            workBgUpload: document.getElementById('work-bg-upload'),
+            breakBgUpload: document.getElementById('break-bg-upload'),
+            workYtUrl: document.getElementById('work-yt-url'),
+            breakYtUrl: document.getElementById('break-yt-url'),
+            workYtApply: document.getElementById('work-yt-apply'),
+            breakYtApply: document.getElementById('break-yt-apply'),
+            workBgPreview: document.getElementById('work-bg-preview'),
+            breakBgPreview: document.getElementById('break-bg-preview'),
+            resetBgBtns: document.querySelectorAll('.reset-bg-btn'),
+            // Layout
+            positionGrid: document.getElementById('position-grid'),
+            posCells: document.querySelectorAll('.pos-cell'),
+            timerSizeSlider: document.getElementById('timer-size-slider'),
+            sizeValueLabel: document.getElementById('size-value-label'),
+            // General
+            btnResetAll: document.getElementById('btn-reset-all')
+        };
+    }
+
+    // ==========================================
+    // BACKGROUND MANAGER
+    // ==========================================
+    const BackgroundManager = {
+        currentMode: 'work',
+
+        init() {
+            this.applyBackground('work');
+        },
+
+        applyBackground(mode) {
+            const bgKey = mode === 'work' ? 'workBg' : 'breakBg';
+            const bg = Settings.get(bgKey);
+
+            // Reset all layers
+            dom.bgImageLayer.style.opacity = '0';
+            dom.bgVideoLayer.classList.remove('active');
+            dom.bgYoutubeLayer.classList.remove('active');
+
+            if (!bg || bg.type === 'default' || bg.type === 'image') {
+                const src = (bg && bg.source) ? bg.source : 'assets/lofi-bg.jpg';
+                dom.bgImageLayer.style.backgroundImage = `url('${src}')`;
+                dom.bgImageLayer.style.opacity = '1';
+                // Pause video if was playing
+                dom.bgVideoLayer.pause();
+            } else if (bg.type === 'video') {
+                dom.bgVideoLayer.src = bg.source;
+                dom.bgVideoLayer.classList.add('active');
+                dom.bgVideoLayer.play().catch(() => {});
+            } else if (bg.type === 'youtube') {
+                const videoId = this.extractYouTubeId(bg.source);
+                if (videoId) {
+                    dom.bgYoutubeLayer.innerHTML = `<iframe 
+                        src="https://www.youtube.com/embed/${videoId}?autoplay=1&mute=1&loop=1&playlist=${videoId}&controls=0&showinfo=0&rel=0&iv_load_policy=3&modestbranding=1&playsinline=1&enablejsapi=1&vq=hd1080"
+                        allow="autoplay; encrypted-media" allowfullscreen></iframe>`;
+                    dom.bgYoutubeLayer.classList.add('active');
+                }
+            }
+
+            this.currentMode = mode;
+        },
+
+        switchToMode(mode) {
+            const bgKey = mode === 'work' ? 'workBg' : 'breakBg';
+            const bg = Settings.get(bgKey);
+            // Only switch if there's a specific background for this mode
+            if (bg && bg.type !== 'default') {
+                this.applyBackground(mode);
+            } else if (mode !== 'work') {
+                // Use work background as fallback for break
+                this.applyBackground('work');
+            }
+        },
+
+        extractYouTubeId(url) {
+            if (!url) return null;
+            const patterns = [
+                /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/,
+                /^([a-zA-Z0-9_-]{11})$/
+            ];
+            for (const pattern of patterns) {
+                const match = url.match(pattern);
+                if (match) return match[1];
+            }
+            return null;
+        },
+
+        handleFileUpload(file, mode) {
+            return new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    const isVideo = file.type.startsWith('video/');
+                    const bgData = {
+                        type: isVideo ? 'video' : 'image',
+                        source: e.target.result
+                    };
+                    Settings.set(mode === 'work' ? 'workBg' : 'breakBg', bgData);
+                    resolve(bgData);
+                };
+                reader.readAsDataURL(file);
+            });
+        },
+
+        updatePreview(mode) {
+            const bgKey = mode === 'work' ? 'workBg' : 'breakBg';
+            const bg = Settings.get(bgKey);
+            const previewEl = mode === 'work' ? dom.workBgPreview : dom.breakBgPreview;
+
+            if (bg && bg.type === 'image' && bg.source) {
+                previewEl.style.backgroundImage = `url('${bg.source}')`;
+                previewEl.innerHTML = '';
+            } else if (bg && bg.type === 'youtube' && bg.source) {
+                previewEl.style.backgroundImage = '';
+                const videoId = this.extractYouTubeId(bg.source);
+                if (videoId) {
+                    previewEl.style.backgroundImage = `url('https://img.youtube.com/vi/${videoId}/mqdefault.jpg')`;
+                    previewEl.innerHTML = '<span style="font-size:1.2rem">▶</span>';
+                }
+            } else {
+                previewEl.style.backgroundImage = '';
+                previewEl.innerHTML = '<span class="bg-preview-placeholder">Varsayılan</span>';
+            }
+        }
     };
 
     // ==========================================
-    // CANVAS PARTICLE SYSTEM
+    // PARTICLE SYSTEM
     // ==========================================
-    const ctx = dom.canvas.getContext('2d');
-    let particles = [];
-    let animFrameId;
+    let ctx, particles = [], animFrameId;
 
     function resizeCanvas() {
+        if (!dom.canvas) return;
         dom.canvas.width = window.innerWidth;
         dom.canvas.height = window.innerHeight;
     }
@@ -82,10 +275,10 @@
 
             switch (this.type) {
                 case 'star':
-                    this.x = Math.random() * w * 0.7 + w * 0.15;
-                    this.y = Math.random() * h * 0.35;
+                    this.x = Math.random() * w;
+                    this.y = Math.random() * h * 0.4;
                     this.size = Math.random() * 2 + 0.5;
-                    this.baseAlpha = Math.random() * 0.6 + 0.2;
+                    this.baseAlpha = Math.random() * 0.5 + 0.15;
                     this.alpha = this.baseAlpha;
                     this.twinkleSpeed = Math.random() * 0.02 + 0.005;
                     this.twinklePhase = Math.random() * Math.PI * 2;
@@ -95,32 +288,13 @@
                 case 'dust':
                     this.x = Math.random() * w;
                     this.y = Math.random() * h;
-                    this.size = Math.random() * 2.5 + 0.5;
-                    this.alpha = Math.random() * 0.15 + 0.03;
-                    this.vx = (Math.random() - 0.5) * 0.3;
-                    this.vy = -Math.random() * 0.2 - 0.05;
+                    this.size = Math.random() * 2 + 0.5;
+                    this.alpha = Math.random() * 0.12 + 0.02;
+                    this.vx = (Math.random() - 0.5) * 0.25;
+                    this.vy = -Math.random() * 0.15 - 0.03;
                     this.life = 0;
-                    this.maxLife = Math.random() * 600 + 300;
+                    this.maxLife = Math.random() * 500 + 200;
                     this.color = `rgba(255, 220, 170`;
-                    break;
-
-                case 'cityLight':
-                    this.x = w * 0.2 + Math.random() * w * 0.55;
-                    this.y = h * 0.18 + Math.random() * h * 0.2;
-                    this.size = Math.random() * 2 + 1;
-                    this.baseAlpha = Math.random() * 0.4 + 0.1;
-                    this.alpha = this.baseAlpha;
-                    this.flickerSpeed = Math.random() * 0.03 + 0.01;
-                    this.flickerPhase = Math.random() * Math.PI * 2;
-                    const colors = [
-                        '255, 200, 100',
-                        '255, 160, 80',
-                        '200, 220, 255',
-                        '255, 180, 120',
-                        '180, 200, 255'
-                    ];
-                    this.colorBase = colors[Math.floor(Math.random() * colors.length)];
-                    this.color = `rgba(${this.colorBase}`;
                     break;
             }
         }
@@ -128,141 +302,55 @@
         update(time) {
             switch (this.type) {
                 case 'star':
-                    this.alpha = this.baseAlpha + Math.sin(time * this.twinkleSpeed + this.twinklePhase) * 0.3;
+                    this.alpha = this.baseAlpha + Math.sin(time * this.twinkleSpeed + this.twinklePhase) * 0.25;
                     break;
-
                 case 'dust':
                     this.x += this.vx;
                     this.y += this.vy;
                     this.life++;
-                    const lifeRatio = this.life / this.maxLife;
-                    if (lifeRatio < 0.1) {
-                        this.alpha = lifeRatio * 10 * 0.12;
-                    } else if (lifeRatio > 0.8) {
-                        this.alpha = (1 - lifeRatio) * 5 * 0.12;
-                    }
+                    const ratio = this.life / this.maxLife;
+                    if (ratio < 0.1) this.alpha = ratio * 10 * 0.1;
+                    else if (ratio > 0.8) this.alpha = (1 - ratio) * 5 * 0.1;
                     if (this.life >= this.maxLife) this.reset();
                     break;
-
-                case 'cityLight':
-                    this.alpha = this.baseAlpha + Math.sin(time * this.flickerSpeed + this.flickerPhase) * 0.2;
-                    if (Math.random() < 0.001) {
-                        this.alpha = this.baseAlpha * 0.2;
-                    }
-                    break;
             }
         }
 
         draw() {
-            ctx.beginPath();
-            if (this.type === 'star') {
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha)})`;
-                ctx.fill();
-                // Glow
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size * 3, 0, Math.PI * 2);
-                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha * 0.15)})`;
-                ctx.fill();
-            } else if (this.type === 'dust') {
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha)})`;
-                ctx.fill();
-            } else if (this.type === 'cityLight') {
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha)})`;
-                ctx.fill();
-                // Light bloom
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size * 4, 0, Math.PI * 2);
-                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha * 0.08)})`;
-                ctx.fill();
-            }
-        }
-    }
-
-    // Sand particles for hourglass
-    let sandParticles = [];
-    class SandParticle {
-        constructor() {
-            this.reset();
-        }
-
-        reset() {
-            const w = dom.canvas.width;
-            const h = dom.canvas.height;
-            // Hourglass position area (approx center of the hourglass in the image)
-            this.x = w * 0.455 + (Math.random() - 0.5) * w * 0.025;
-            this.startY = h * 0.38;
-            this.endY = h * 0.48;
-            this.y = this.startY;
-            this.size = Math.random() * 1.5 + 0.5;
-            this.speed = Math.random() * 0.8 + 0.4;
-            this.alpha = Math.random() * 0.6 + 0.3;
-            this.delay = Math.random() * 100;
-            this.life = -this.delay;
-        }
-
-        update() {
-            this.life++;
-            if (this.life < 0) return;
-            this.y += this.speed;
-            if (this.y > this.endY) {
-                this.reset();
-            }
-        }
-
-        draw() {
-            if (this.life < 0) return;
             ctx.beginPath();
             ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
-            ctx.fillStyle = `rgba(244, 190, 80, ${this.alpha})`;
+            ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha)})`;
             ctx.fill();
-        }
-    }
-
-    function initParticles() {
-        particles = [];
-        for (let i = 0; i < CONFIG.PARTICLES.STARS; i++) {
-            particles.push(new Particle('star'));
-        }
-        for (let i = 0; i < CONFIG.PARTICLES.DUST; i++) {
-            particles.push(new Particle('dust'));
-        }
-        for (let i = 0; i < CONFIG.PARTICLES.CITY_LIGHTS; i++) {
-            particles.push(new Particle('cityLight'));
-        }
-
-        // Sand particles (initially inactive)
-        sandParticles = [];
-        for (let i = 0; i < 15; i++) {
-            sandParticles.push(new SandParticle());
+            if (this.type === 'star') {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.size * 2.5, 0, Math.PI * 2);
+                ctx.fillStyle = `${this.color}, ${Math.max(0, this.alpha * 0.12)})`;
+                ctx.fill();
+            }
         }
     }
 
     let frameCount = 0;
     function animateParticles() {
+        if (!Settings.get('particles')) {
+            ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height);
+            animFrameId = requestAnimationFrame(animateParticles);
+            return;
+        }
         frameCount++;
         ctx.clearRect(0, 0, dom.canvas.width, dom.canvas.height);
-
-        particles.forEach(p => {
-            p.update(frameCount);
-            p.draw();
-        });
-
-        // Draw sand only when timer is running
-        if (state.isRunning && !state.isPaused) {
-            sandParticles.forEach(s => {
-                s.update();
-                s.draw();
-            });
-        }
-
+        particles.forEach(p => { p.update(frameCount); p.draw(); });
         animFrameId = requestAnimationFrame(animateParticles);
     }
 
+    function initParticles() {
+        particles = [];
+        for (let i = 0; i < 50; i++) particles.push(new Particle('star'));
+        for (let i = 0; i < 30; i++) particles.push(new Particle('dust'));
+    }
+
     // ==========================================
-    // POMODORO TIMER
+    // TIMER LOGIC
     // ==========================================
 
     function formatTime(seconds) {
@@ -276,12 +364,10 @@
         dom.minutes.textContent = m;
         dom.seconds.textContent = s;
 
-        // Update progress ring
         const progress = 1 - (state.timeRemaining / state.totalTime);
-        const circumference = 2 * Math.PI * 90; // r=90
+        const circumference = 2 * Math.PI * 90;
         dom.progressCircle.style.strokeDashoffset = circumference * (1 - progress);
 
-        // Update page title
         if (state.isRunning) {
             const modeText = state.currentMode === 'work' ? '🔥' : '☕';
             document.title = `${m}:${s} ${modeText} Lofi Pomodoro`;
@@ -291,8 +377,9 @@
     }
 
     function updateSessionDots() {
+        const total = Settings.get('sessionsBeforeLong');
         dom.sessionDots.innerHTML = '';
-        for (let i = 0; i < CONFIG.SESSIONS_BEFORE_LONG_BREAK; i++) {
+        for (let i = 0; i < total; i++) {
             const dot = document.createElement('div');
             dot.className = 'session-dot';
             if (i < state.completedSessions) dot.classList.add('completed');
@@ -301,7 +388,7 @@
             }
             dom.sessionDots.appendChild(dot);
         }
-        dom.sessionCount.textContent = `Oturum ${state.completedSessions + 1}/${CONFIG.SESSIONS_BEFORE_LONG_BREAK}`;
+        dom.sessionCount.textContent = `Oturum ${state.completedSessions + 1}/${total}`;
     }
 
     function updateModeButtons() {
@@ -328,23 +415,30 @@
 
         switch (mode) {
             case 'work':
-                state.timeRemaining = CONFIG.WORK_MINUTES * 60;
-                state.totalTime = CONFIG.WORK_MINUTES * 60;
+                state.timeRemaining = Settings.get('workMinutes') * 60;
+                state.totalTime = Settings.get('workMinutes') * 60;
                 dom.modeLabel.textContent = 'ODAKLAN';
                 document.body.classList.remove('break-mode');
                 break;
             case 'short':
-                state.timeRemaining = CONFIG.SHORT_BREAK_MINUTES * 60;
-                state.totalTime = CONFIG.SHORT_BREAK_MINUTES * 60;
+                state.timeRemaining = Settings.get('shortBreakMinutes') * 60;
+                state.totalTime = Settings.get('shortBreakMinutes') * 60;
                 dom.modeLabel.textContent = 'KISA MOLA';
                 document.body.classList.add('break-mode');
                 break;
             case 'long':
-                state.timeRemaining = CONFIG.LONG_BREAK_MINUTES * 60;
-                state.totalTime = CONFIG.LONG_BREAK_MINUTES * 60;
+                state.timeRemaining = Settings.get('longBreakMinutes') * 60;
+                state.totalTime = Settings.get('longBreakMinutes') * 60;
                 dom.modeLabel.textContent = 'UZUN MOLA';
                 document.body.classList.add('break-mode');
                 break;
+        }
+
+        // Switch background for mode
+        if (mode === 'work') {
+            BackgroundManager.switchToMode('work');
+        } else {
+            BackgroundManager.switchToMode('break');
         }
 
         updateDisplay();
@@ -377,7 +471,7 @@
 
     function pauseTimer() {
         state.isPaused = true;
-        state.isRunning = false;  
+        state.isRunning = false;
         clearInterval(state.intervalId);
         document.body.classList.remove('timer-running');
         updatePlayPauseIcon();
@@ -404,18 +498,13 @@
         document.body.classList.remove('timer-running');
         updatePlayPauseIcon();
 
-        // Flash notification
         showNotificationFlash();
-
-        // Play notification sound
-        playNotificationSound();
-
-        // Browser notification
-        sendNotification();
+        if (Settings.get('notifSound')) playNotificationSound();
+        if (Settings.get('browserNotif')) sendNotification();
 
         if (state.currentMode === 'work') {
             state.completedSessions++;
-            if (state.completedSessions >= CONFIG.SESSIONS_BEFORE_LONG_BREAK) {
+            if (Settings.get('autoSequence') && state.completedSessions >= Settings.get('sessionsBeforeLong')) {
                 state.completedSessions = 0;
                 setMode('long');
             } else {
@@ -426,8 +515,10 @@
         }
 
         updateSessionDots();
-        // Auto-start next session
-        setTimeout(() => startTimer(), 1500);
+
+        if (Settings.get('autoStart')) {
+            setTimeout(() => startTimer(), 1500);
+        }
     }
 
     function showNotificationFlash() {
@@ -436,10 +527,8 @@
     }
 
     function playNotificationSound() {
-        // Generate a pleasant notification chime using Web Audio API
         try {
             const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-            
             const playTone = (freq, startTime, duration) => {
                 const osc = audioCtx.createOscillator();
                 const gain = audioCtx.createGain();
@@ -447,31 +536,270 @@
                 gain.connect(audioCtx.destination);
                 osc.type = 'sine';
                 osc.frequency.value = freq;
-                gain.gain.setValueAtTime(0.15, startTime);
+                gain.gain.setValueAtTime(0.12, startTime);
                 gain.gain.exponentialRampToValueAtTime(0.001, startTime + duration);
                 osc.start(startTime);
                 osc.stop(startTime + duration);
             };
-
             const now = audioCtx.currentTime;
-            playTone(523.25, now, 0.3);       // C5
-            playTone(659.25, now + 0.15, 0.3); // E5
-            playTone(783.99, now + 0.3, 0.5);  // G5
-        } catch(e) {
+            playTone(523.25, now, 0.3);
+            playTone(659.25, now + 0.15, 0.3);
+            playTone(783.99, now + 0.3, 0.5);
+        } catch (e) {
             console.log('Audio not available');
         }
     }
 
     function sendNotification() {
         if ('Notification' in window && Notification.permission === 'granted') {
-            const text = state.currentMode === 'work' 
-                ? 'Çalışma süresi bitti! Mola zamanı ☕' 
+            const text = state.currentMode === 'work'
+                ? 'Çalışma süresi bitti! Mola zamanı ☕'
                 : 'Mola bitti! Çalışmaya devam 🔥';
-            new Notification('Lofi Pomodoro', {
-                body: text,
-                icon: 'assets/lofi-bg.jpg',
-                silent: true
+            new Notification('Lofi Pomodoro', { body: text, silent: true });
+        }
+    }
+
+    // ==========================================
+    // INTRO SCREEN
+    // ==========================================
+
+    function initIntro() {
+        dom.hourglassWrapper.addEventListener('click', () => {
+            // Start flip animation
+            dom.hourglassWrapper.classList.add('flipping');
+
+            // After flip animation, fade out intro
+            setTimeout(() => {
+                dom.introScreen.classList.add('fade-out');
+
+                // After fade, remove intro and show app
+                setTimeout(() => {
+                    dom.introScreen.classList.add('gone');
+                    showApp();
+                }, 1000);
+            }, 1800);
+        });
+    }
+
+    function showApp() {
+        // Apply background
+        BackgroundManager.init();
+
+        // Show timer widget
+        dom.timerWidget.classList.remove('hidden');
+
+        // Show settings button
+        dom.settingsBtn.style.display = 'flex';
+
+        // Initialize timer and auto-start
+        setMode('work');
+        setTimeout(() => startTimer(), 500);
+    }
+
+    // ==========================================
+    // SETTINGS UI
+    // ==========================================
+
+    function initSettings() {
+        // Open settings
+        dom.settingsBtn.addEventListener('click', openSettings);
+
+        // Close settings
+        dom.settingsClose.addEventListener('click', closeSettings);
+        dom.settingsCancel.addEventListener('click', closeSettings);
+        dom.settingsBackdrop.addEventListener('click', closeSettings);
+
+        // Save settings
+        dom.settingsSave.addEventListener('click', saveSettings);
+
+        // Tab switching
+        dom.navBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                dom.navBtns.forEach(b => b.classList.remove('active'));
+                dom.tabPanels.forEach(p => p.classList.remove('active'));
+                btn.classList.add('active');
+                document.getElementById(`tab-${btn.dataset.tab}`).classList.add('active');
             });
+        });
+
+        // Position grid
+        dom.posCells.forEach(cell => {
+            cell.addEventListener('click', () => {
+                dom.posCells.forEach(c => c.classList.remove('active'));
+                cell.classList.add('active');
+            });
+        });
+
+        // Size slider
+        dom.timerSizeSlider.addEventListener('input', () => {
+            const labels = ['Küçük', 'Orta', 'Büyük'];
+            dom.sizeValueLabel.textContent = labels[dom.timerSizeSlider.value];
+        });
+
+        // File upload handlers
+        dom.workBgUpload.addEventListener('change', async (e) => {
+            if (e.target.files[0]) {
+                await BackgroundManager.handleFileUpload(e.target.files[0], 'work');
+                BackgroundManager.updatePreview('work');
+            }
+        });
+
+        dom.breakBgUpload.addEventListener('change', async (e) => {
+            if (e.target.files[0]) {
+                await BackgroundManager.handleFileUpload(e.target.files[0], 'break');
+                BackgroundManager.updatePreview('break');
+            }
+        });
+
+        // YouTube URL apply
+        dom.workYtApply.addEventListener('click', () => {
+            const url = dom.workYtUrl.value.trim();
+            if (url && BackgroundManager.extractYouTubeId(url)) {
+                Settings.set('workBg', { type: 'youtube', source: url });
+                BackgroundManager.updatePreview('work');
+            }
+        });
+
+        dom.breakYtApply.addEventListener('click', () => {
+            const url = dom.breakYtUrl.value.trim();
+            if (url && BackgroundManager.extractYouTubeId(url)) {
+                Settings.set('breakBg', { type: 'youtube', source: url });
+                BackgroundManager.updatePreview('break');
+            }
+        });
+
+        // Reset background buttons
+        dom.resetBgBtns.forEach(btn => {
+            btn.addEventListener('click', () => {
+                const target = btn.dataset.target;
+                Settings.set(target === 'work' ? 'workBg' : 'breakBg', { type: 'default', source: 'assets/lofi-bg.jpg' });
+                BackgroundManager.updatePreview(target);
+                // Clear YouTube input
+                if (target === 'work') dom.workYtUrl.value = '';
+                else dom.breakYtUrl.value = '';
+            });
+        });
+
+        // Reset all
+        dom.btnResetAll.addEventListener('click', () => {
+            if (confirm('Tüm ayarlar sıfırlansın mı?')) {
+                Settings.resetAll();
+                populateSettingsUI();
+                applyAllSettings();
+            }
+        });
+
+        // ESC to close settings
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Escape' && !dom.settingsModal.classList.contains('hidden')) {
+                closeSettings();
+            }
+        });
+    }
+
+    function openSettings() {
+        populateSettingsUI();
+        dom.settingsModal.classList.remove('hidden');
+    }
+
+    function closeSettings() {
+        dom.settingsModal.classList.add('hidden');
+    }
+
+    function populateSettingsUI() {
+        // Timers
+        dom.setWork.value = Settings.get('workMinutes');
+        dom.setShort.value = Settings.get('shortBreakMinutes');
+        dom.setLong.value = Settings.get('longBreakMinutes');
+        dom.setAutoSequence.checked = Settings.get('autoSequence');
+
+        // Sounds
+        dom.setNotifSound.checked = Settings.get('notifSound');
+        dom.setBrowserNotif.checked = Settings.get('browserNotif');
+
+        // General
+        dom.setAutoStart.checked = Settings.get('autoStart');
+        dom.setParticles.checked = Settings.get('particles');
+
+        // Position grid
+        const pos = Settings.get('timerPosition');
+        dom.posCells.forEach(c => {
+            c.classList.toggle('active', c.dataset.pos === pos);
+        });
+
+        // Size slider
+        const sizeMap = { small: 0, medium: 1, large: 2 };
+        const sizeLabels = ['Küçük', 'Orta', 'Büyük'];
+        const sizeIdx = sizeMap[Settings.get('timerSize')] ?? 1;
+        dom.timerSizeSlider.value = sizeIdx;
+        dom.sizeValueLabel.textContent = sizeLabels[sizeIdx];
+
+        // Background previews
+        BackgroundManager.updatePreview('work');
+        BackgroundManager.updatePreview('break');
+
+        // YouTube URLs
+        const workBg = Settings.get('workBg');
+        const breakBg = Settings.get('breakBg');
+        dom.workYtUrl.value = (workBg && workBg.type === 'youtube') ? workBg.source : '';
+        dom.breakYtUrl.value = (breakBg && breakBg.type === 'youtube') ? breakBg.source : '';
+    }
+
+    function saveSettings() {
+        // Read timers
+        Settings.set('workMinutes', Math.max(1, Math.min(120, parseInt(dom.setWork.value) || 25)));
+        Settings.set('shortBreakMinutes', Math.max(1, Math.min(60, parseInt(dom.setShort.value) || 5)));
+        Settings.set('longBreakMinutes', Math.max(1, Math.min(60, parseInt(dom.setLong.value) || 15)));
+        Settings.set('autoSequence', dom.setAutoSequence.checked);
+
+        // Read sounds
+        Settings.set('notifSound', dom.setNotifSound.checked);
+        Settings.set('browserNotif', dom.setBrowserNotif.checked);
+
+        // Read general
+        Settings.set('autoStart', dom.setAutoStart.checked);
+        Settings.set('particles', dom.setParticles.checked);
+
+        // Read position
+        const activePos = document.querySelector('.pos-cell.active');
+        if (activePos) Settings.set('timerPosition', activePos.dataset.pos);
+
+        // Read size
+        const sizes = ['small', 'medium', 'large'];
+        Settings.set('timerSize', sizes[dom.timerSizeSlider.value] || 'medium');
+
+        // Save
+        Settings.save();
+
+        // Apply
+        applyAllSettings();
+
+        // Close
+        closeSettings();
+    }
+
+    function applyAllSettings() {
+        // Apply position
+        dom.timerWidget.dataset.position = Settings.get('timerPosition');
+
+        // Apply size
+        dom.timerWidget.dataset.size = Settings.get('timerSize');
+
+        // Apply background
+        if (state.currentMode === 'work') {
+            BackgroundManager.applyBackground('work');
+        } else {
+            BackgroundManager.applyBackground('break');
+        }
+
+        // Apply timer durations (reset current timer)
+        if (!state.isRunning) {
+            setMode(state.currentMode);
+        }
+
+        // request notification permission
+        if (Settings.get('browserNotif') && 'Notification' in window && Notification.permission === 'default') {
+            Notification.requestPermission();
         }
     }
 
@@ -479,103 +807,117 @@
     // EVENT LISTENERS
     // ==========================================
 
-    // Hourglass click -> open timer and start
-    dom.hourglass.addEventListener('click', () => {
-        dom.timerPanel.classList.remove('hidden');
-        if (!state.isRunning && !state.isPaused) {
-            startTimer();
-        }
-    });
-
-    // Close panel
-    dom.closePanel.addEventListener('click', () => {
-        dom.timerPanel.classList.add('hidden');
-    });
-
-    // Start/Pause toggle
-    dom.btnStart.addEventListener('click', () => {
-        if (state.isRunning && !state.isPaused) {
-            pauseTimer();
-        } else {
-            startTimer();
-        }
-    });
-
-    // Reset
-    dom.btnReset.addEventListener('click', resetTimer);
-
-    // Skip
-    dom.btnSkip.addEventListener('click', skipTimer);
-
-    // Mode buttons
-    dom.modeBtns.forEach(btn => {
-        btn.addEventListener('click', () => {
-            setMode(btn.dataset.mode);
-        });
-    });
-
-    // Close panel on backdrop click
-    dom.timerPanel.addEventListener('click', (e) => {
-        if (e.target === dom.timerPanel) {
-            dom.timerPanel.classList.add('hidden');
-        }
-    });
-
-    // Keyboard shortcuts
-    document.addEventListener('keydown', (e) => {
-        if (e.code === 'Space' && !dom.timerPanel.classList.contains('hidden')) {
-            e.preventDefault();
+    function initEventListeners() {
+        // Start/Pause toggle
+        dom.btnStart.addEventListener('click', () => {
             if (state.isRunning && !state.isPaused) {
                 pauseTimer();
             } else {
                 startTimer();
             }
-        }
-        if (e.code === 'Escape') {
-            dom.timerPanel.classList.add('hidden');
-        }
-    });
+        });
+
+        // Reset
+        dom.btnReset.addEventListener('click', resetTimer);
+
+        // Skip
+        dom.btnSkip.addEventListener('click', skipTimer);
+
+        // Mode buttons
+        dom.modeBtns.forEach(btn => {
+            btn.addEventListener('click', () => setMode(btn.dataset.mode));
+        });
+
+        // Keyboard shortcuts
+        document.addEventListener('keydown', (e) => {
+            if (!dom.settingsModal.classList.contains('hidden')) return; // Don't handle when settings open
+
+            if (e.code === 'Space' && dom.introScreen && dom.introScreen.classList.contains('gone')) {
+                e.preventDefault();
+                if (state.isRunning && !state.isPaused) {
+                    pauseTimer();
+                } else {
+                    startTimer();
+                }
+            }
+        });
+
+        // Window resize
+        window.addEventListener('resize', () => {
+            resizeCanvas();
+            initParticles();
+        });
+    }
+
+    // ==========================================
+    // SAVED SESSION STATE
+    // ==========================================
+
+    function loadSessionState() {
+        try {
+            const saved = localStorage.getItem('lofi-pomodoro-sessions');
+            if (saved) {
+                const data = JSON.parse(saved);
+                state.completedSessions = data.completedSessions || 0;
+            }
+        } catch {}
+    }
+
+    function saveSessionState() {
+        try {
+            localStorage.setItem('lofi-pomodoro-sessions', JSON.stringify({
+                completedSessions: state.completedSessions
+            }));
+        } catch {}
+    }
 
     // ==========================================
     // INITIALIZATION
     // ==========================================
 
     function init() {
+        cacheDom();
+        Settings.load();
+
+        // Canvas setup
+        ctx = dom.canvas.getContext('2d');
         resizeCanvas();
         initParticles();
         animateParticles();
+
+        // Apply saved position/size to widget
+        dom.timerWidget.dataset.position = Settings.get('timerPosition');
+        dom.timerWidget.dataset.size = Settings.get('timerSize');
+
+        // Hide settings button until intro is done
+        dom.settingsBtn.style.display = 'none';
+
+        // Set initial timer display
+        state.timeRemaining = Settings.get('workMinutes') * 60;
+        state.totalTime = Settings.get('workMinutes') * 60;
         updateDisplay();
         updateSessionDots();
         updateModeButtons();
 
+        // Load session state
+        loadSessionState();
+        updateSessionDots();
+
+        // Init subsystems
+        initIntro();
+        initSettings();
+        initEventListeners();
+
         // Request notification permission
-        if ('Notification' in window && Notification.permission === 'default') {
+        if (Settings.get('browserNotif') && 'Notification' in window && Notification.permission === 'default') {
             Notification.requestPermission();
         }
 
-        // Load saved state from localStorage
-        const saved = localStorage.getItem('lofi-pomodoro-sessions');
-        if (saved) {
-            const data = JSON.parse(saved);
-            state.completedSessions = data.completedSessions || 0;
-            updateSessionDots();
-        }
-
-        window.addEventListener('resize', () => {
-            resizeCanvas();
-            // Re-initialize particles on resize for correct positions
-            initParticles();
-        });
-
-        // Save state periodically
-        setInterval(() => {
-            localStorage.setItem('lofi-pomodoro-sessions', JSON.stringify({
-                completedSessions: state.completedSessions
-            }));
-        }, 5000);
+        // Periodically save session state
+        setInterval(saveSessionState, 5000);
     }
 
-    // Start everything when DOM is ready
+    // Start
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', init);
     } else {

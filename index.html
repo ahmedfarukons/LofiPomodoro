@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Lofi Pomodoro - Huzurlu bir ortamda odaklan. Kum saatine dokun ve zamanlayıcıyı başlat.">
+    <meta name="description" content="Lofi Pomodoro - Huzurlu bir ortamda odaklan. Arka planını özelleştir, YouTube videosu ekle.">
     <title>Lofi Pomodoro ⏳</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,42 +11,80 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Living Scene Container -->
-    <div id="scene-container">
-        <!-- Background Image with Breathing Animation -->
-        <div id="scene-bg"></div>
 
-        <!-- Animated Cloud Overlays -->
-        <div class="cloud-layer cloud-1"></div>
-        <div class="cloud-layer cloud-2"></div>
-        <div class="cloud-layer cloud-3"></div>
-
-        <!-- Canvas for Particles (stars, dust, sand) -->
-        <canvas id="particle-canvas"></canvas>
-
-        <!-- Ambient light effects -->
-        <div id="lamp-glow"></div>
-        <div id="screen-glow"></div>
-        <div id="hourglass-ambient-glow"></div>
-
-        <!-- Hourglass Interactive Hotspot -->
-        <div id="hourglass-hotspot" title="Kum saatine dokun ve Pomodoro'yu başlat!">
-            <div class="hotspot-ring"></div>
-            <div class="hotspot-ring ring-2"></div>
-            <div class="hotspot-ring ring-3"></div>
+    <!-- ============ INTRO SCREEN ============ -->
+    <div id="intro-screen">
+        <div id="intro-particles"></div>
+        <div id="intro-content">
+            <div id="hourglass-wrapper">
+                <svg id="hourglass-svg" viewBox="0 0 120 200" fill="none" xmlns="http://www.w3.org/2000/svg">
+                    <defs>
+                        <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="0%">
+                            <stop offset="0%" stop-color="#8a6420"/>
+                            <stop offset="30%" stop-color="#d4a94c"/>
+                            <stop offset="50%" stop-color="#f0cc6b"/>
+                            <stop offset="70%" stop-color="#d4a94c"/>
+                            <stop offset="100%" stop-color="#8a6420"/>
+                        </linearGradient>
+                        <linearGradient id="sandGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+                            <stop offset="0%" stop-color="#f0c060"/>
+                            <stop offset="100%" stop-color="#c88a32"/>
+                        </linearGradient>
+                        <radialGradient id="glassGrad" cx="50%" cy="30%" r="60%">
+                            <stop offset="0%" stop-color="rgba(255,240,200,0.12)"/>
+                            <stop offset="100%" stop-color="rgba(255,220,160,0.02)"/>
+                        </radialGradient>
+                        <filter id="glow">
+                            <feGaussianBlur stdDeviation="3" result="blur"/>
+                            <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+                        </filter>
+                    </defs>
+                    <!-- Frame top -->
+                    <rect x="15" y="6" width="90" height="7" rx="3.5" fill="url(#goldGrad)"/>
+                    <rect x="20" y="13" width="80" height="3" rx="1.5" fill="url(#goldGrad)" opacity="0.5"/>
+                    <!-- Frame bottom -->
+                    <rect x="15" y="187" width="90" height="7" rx="3.5" fill="url(#goldGrad)"/>
+                    <rect x="20" y="184" width="80" height="3" rx="1.5" fill="url(#goldGrad)" opacity="0.5"/>
+                    <!-- Pillars -->
+                    <rect x="22" y="13" width="3.5" height="174" rx="1.75" fill="url(#goldGrad)" opacity="0.35"/>
+                    <rect x="94.5" y="13" width="3.5" height="174" rx="1.75" fill="url(#goldGrad)" opacity="0.35"/>
+                    <!-- Glass top bulb -->
+                    <path d="M30 16 C30 16, 28 80, 60 100 C92 80, 90 16, 90 16" stroke="rgba(200,165,96,0.4)" stroke-width="1.5" fill="url(#glassGrad)"/>
+                    <!-- Glass bottom bulb -->
+                    <path d="M30 184 C30 184, 28 120, 60 100 C92 120, 90 184, 90 184" stroke="rgba(200,165,96,0.4)" stroke-width="1.5" fill="url(#glassGrad)"/>
+                    <!-- Sand top -->
+                    <path class="sand-top" d="M36 35 C36 35, 34 72, 60 88 C72 80, 74 55, 74 35 Z" fill="url(#sandGrad)" opacity="0.75"/>
+                    <!-- Sand stream -->
+                    <line class="sand-stream" x1="60" y1="90" x2="60" y2="110" stroke="#e8a849" stroke-width="2" stroke-linecap="round" opacity="0.6"/>
+                    <!-- Sand bottom -->
+                    <path class="sand-bottom" d="M42 182 C42 182, 42 155, 60 142 C78 155, 78 182, 78 182 Z" fill="url(#sandGrad)" opacity="0.55"/>
+                    <!-- Center glow -->
+                    <circle cx="60" cy="100" r="8" fill="#f0c060" opacity="0.15" filter="url(#glow)"/>
+                </svg>
+                <div id="hourglass-glow"></div>
+            </div>
+            <p id="intro-text">Başlamak için kum saatine dokun</p>
+            <div id="intro-subtitle">Lofi Pomodoro</div>
         </div>
-
-        <!-- Vignette Overlay -->
-        <div id="vignette"></div>
     </div>
 
-    <!-- Pomodoro Timer Panel -->
-    <div id="timer-panel" class="hidden">
+    <!-- ============ BACKGROUND LAYERS ============ -->
+    <div id="bg-container">
+        <div id="bg-image-layer"></div>
+        <video id="bg-video-layer" muted loop playsinline></video>
+        <div id="bg-youtube-layer"></div>
+        <div id="bg-overlay"></div>
+    </div>
+
+    <!-- ============ PARTICLES & VIGNETTE ============ -->
+    <canvas id="particle-canvas"></canvas>
+    <div id="vignette"></div>
+
+    <!-- ============ TIMER WIDGET ============ -->
+    <div id="timer-widget" class="hidden" data-position="center-center" data-size="medium">
         <div class="timer-glass">
-            <button id="close-panel" aria-label="Kapat">✕</button>
-            
             <div id="timer-mode-label">ODAKLAN</div>
-            
+
             <div id="timer-display">
                 <span id="minutes">25</span>
                 <span class="timer-colon">:</span>
@@ -86,7 +124,195 @@
         </div>
     </div>
 
-    <!-- Notification Sound -->
+    <!-- ============ SETTINGS BUTTON ============ -->
+    <button id="settings-btn" title="Ayarlar">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="3"/>
+            <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z"/>
+        </svg>
+    </button>
+
+    <!-- ============ SETTINGS MODAL ============ -->
+    <div id="settings-modal" class="hidden">
+        <div class="settings-backdrop"></div>
+        <div class="settings-container">
+            <button id="settings-close" aria-label="Kapat">✕</button>
+
+            <div class="settings-body">
+                <!-- Left Navigation -->
+                <nav class="settings-nav">
+                    <button class="nav-btn active" data-tab="timers">Timers</button>
+                    <button class="nav-btn" data-tab="sounds">Sounds</button>
+                    <button class="nav-btn" data-tab="background">Background</button>
+                    <button class="nav-btn" data-tab="layout">Layout</button>
+                    <button class="nav-btn" data-tab="general">General</button>
+                </nav>
+
+                <!-- Right Content -->
+                <div class="settings-content">
+                    <!-- TIMERS TAB -->
+                    <div class="tab-panel active" id="tab-timers">
+                        <div class="timer-inputs-row">
+                            <div class="timer-input-group">
+                                <label>Pomodoro</label>
+                                <input type="number" id="set-work" min="1" max="120" value="25">
+                                <span class="input-unit">minutes</span>
+                            </div>
+                            <div class="timer-input-group">
+                                <label>Short Break</label>
+                                <input type="number" id="set-short" min="1" max="60" value="5">
+                                <span class="input-unit">minutes</span>
+                            </div>
+                            <div class="timer-input-group">
+                                <label>Long Break</label>
+                                <input type="number" id="set-long" min="1" max="60" value="15">
+                                <span class="input-unit">minutes</span>
+                            </div>
+                        </div>
+                        <div class="setting-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="set-auto-sequence" checked>
+                                <span class="toggle-switch"></span>
+                                <span>Pomodoro sırasını kullan: Pomodoro → kısa mola, 4x tekrarla, sonra uzun mola</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- SOUNDS TAB -->
+                    <div class="tab-panel" id="tab-sounds">
+                        <div class="setting-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="set-notif-sound" checked>
+                                <span class="toggle-switch"></span>
+                                <span>Bildirim sesi</span>
+                            </label>
+                        </div>
+                        <div class="setting-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="set-browser-notif" checked>
+                                <span class="toggle-switch"></span>
+                                <span>Tarayıcı bildirimi</span>
+                            </label>
+                        </div>
+                    </div>
+
+                    <!-- BACKGROUND TAB -->
+                    <div class="tab-panel" id="tab-background">
+                        <!-- Work Background -->
+                        <div class="bg-section">
+                            <h3>🔥 Çalışma Arka Planı</h3>
+                            <div class="bg-options">
+                                <div class="bg-option-card">
+                                    <div class="bg-preview" id="work-bg-preview">
+                                        <span class="bg-preview-placeholder">Varsayılan</span>
+                                    </div>
+                                    <div class="bg-controls">
+                                        <label class="upload-btn" for="work-bg-upload">
+                                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/></svg>
+                                            Resim Yükle
+                                        </label>
+                                        <input type="file" id="work-bg-upload" accept="image/*,video/*" hidden>
+                                        <button class="reset-bg-btn" data-target="work">Varsayılana Dön</button>
+                                    </div>
+                                </div>
+                                <div class="bg-youtube-section">
+                                    <label>YouTube Video URL</label>
+                                    <div class="youtube-input-row">
+                                        <input type="url" id="work-yt-url" placeholder="https://www.youtube.com/watch?v=...">
+                                        <button id="work-yt-apply" class="apply-btn">Uygula</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Break Background -->
+                        <div class="bg-section">
+                            <h3>☕ Mola Arka Planı</h3>
+                            <div class="bg-options">
+                                <div class="bg-option-card">
+                                    <div class="bg-preview" id="break-bg-preview">
+                                        <span class="bg-preview-placeholder">Varsayılan</span>
+                                    </div>
+                                    <div class="bg-controls">
+                                        <label class="upload-btn" for="break-bg-upload">
+                                            <svg viewBox="0 0 24 24" width="16" height="16"><path fill="currentColor" d="M19 7v2.99s-1.99.01-2 0V7h-3s.01-1.99 0-2h3V2h2v3h3v2h-3zm-3 4V8h-3V5H5c-1.1 0-2 .9-2 2v12c0 1.1.9 2 2 2h12c1.1 0 2-.9 2-2v-8h-3zM5 19l3-4 2 3 3-4 4 5H5z"/></svg>
+                                            Resim Yükle
+                                        </label>
+                                        <input type="file" id="break-bg-upload" accept="image/*,video/*" hidden>
+                                        <button class="reset-bg-btn" data-target="break">Varsayılana Dön</button>
+                                    </div>
+                                </div>
+                                <div class="bg-youtube-section">
+                                    <label>YouTube Video URL</label>
+                                    <div class="youtube-input-row">
+                                        <input type="url" id="break-yt-url" placeholder="https://www.youtube.com/watch?v=...">
+                                        <button id="break-yt-apply" class="apply-btn">Uygula</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- LAYOUT TAB -->
+                    <div class="tab-panel" id="tab-layout">
+                        <div class="layout-section">
+                            <h3>Timer Konumu</h3>
+                            <p class="layout-hint">Timer'ın ekranda nerede görüneceğini seçin</p>
+                            <div class="position-grid" id="position-grid">
+                                <button class="pos-cell" data-pos="top-left"></button>
+                                <button class="pos-cell" data-pos="top-center"></button>
+                                <button class="pos-cell" data-pos="top-right"></button>
+                                <button class="pos-cell" data-pos="center-left"></button>
+                                <button class="pos-cell active" data-pos="center-center"></button>
+                                <button class="pos-cell" data-pos="center-right"></button>
+                                <button class="pos-cell" data-pos="bottom-left"></button>
+                                <button class="pos-cell" data-pos="bottom-center"></button>
+                                <button class="pos-cell" data-pos="bottom-right"></button>
+                            </div>
+                        </div>
+                        <div class="layout-section">
+                            <h3>Timer Boyutu</h3>
+                            <div class="size-slider-container">
+                                <span class="size-label">Küçük</span>
+                                <input type="range" id="timer-size-slider" min="0" max="2" step="1" value="1">
+                                <span class="size-label">Büyük</span>
+                            </div>
+                            <div id="size-value-label">Orta</div>
+                        </div>
+                    </div>
+
+                    <!-- GENERAL TAB -->
+                    <div class="tab-panel" id="tab-general">
+                        <div class="setting-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="set-auto-start" checked>
+                                <span class="toggle-switch"></span>
+                                <span>Otomatik sonraki oturumu başlat</span>
+                            </label>
+                        </div>
+                        <div class="setting-row">
+                            <label class="toggle-label">
+                                <input type="checkbox" id="set-particles">
+                                <span class="toggle-switch"></span>
+                                <span>Parçacık efektleri</span>
+                            </label>
+                        </div>
+                        <div class="general-actions">
+                            <button id="btn-reset-all" class="danger-btn">Tümünü Sıfırla</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Footer -->
+            <div class="settings-footer">
+                <button id="settings-cancel" class="footer-btn cancel">Kapat</button>
+                <button id="settings-save" class="footer-btn save">Kaydet</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============ NOTIFICATION ============ -->
     <div id="notification-flash" class="hidden"></div>
 
     <script src="app.js"></script>
